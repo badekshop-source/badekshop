@@ -261,7 +261,7 @@ export default async function AdminOrderDetailPage({ params }: AdminOrderDetailP
           )}
 
           {/* Actions */}
-          <OrderActions orderId={order.id} currentOrderStatus={order.orderStatus ?? "pending"} />
+          <OrderActions orderId={order.id} currentOrderStatus={order.orderStatus ?? "pending"} orderTotal={order.total} />
         </div>
       </div>
     </div>
