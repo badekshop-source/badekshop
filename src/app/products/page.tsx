@@ -87,13 +87,31 @@ export default async function ProductsPage({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {productsList.map((product) => (
+              {productsList.map((product) => {
+                const discountPct = product.discountPercentage ?? 0;
+                const hasActiveDiscount = discountPct > 0 &&
+                  (!product.discountStart || new Date(product.discountStart) <= new Date()) &&
+                  (!product.discountEnd || new Date(product.discountEnd) >= new Date());
+                
+                const discountAmount = hasActiveDiscount ? Math.round(product.price * (discountPct / 100)) : 0;
+                const discountedPrice = product.price - discountAmount;
+
+                return (
                 <div 
                   key={product.id} 
-                  className="bg-white rounded-2xl p-6 border-2 border-gray-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/50 transition-all duration-300 flex flex-col"
+                  className="bg-white rounded-2xl p-6 border-2 border-gray-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/50 transition-all duration-300 flex flex-col relative"
                 >
+                  {/* Discount Badge */}
+                  {hasActiveDiscount && (
+                    <div className="absolute -top-3 left-4">
+                      <span className="bg-gradient-to-r from-red-600 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg ring-2 ring-white">
+                        {discountPct}% OFF
+                      </span>
+                    </div>
+                  )}
+
                   {/* Category Badge */}
-                  <div className="mb-4">
+                  <div className={cn("mb-4", hasActiveDiscount && "pt-2")}>
                     <span className={cn(
                       "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold",
                       product.category === 'esim'
@@ -121,12 +139,26 @@ export default async function ProductsPage({
                   
                   {/* Price */}
                   <div className="mb-4">
+                    {hasActiveDiscount && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm line-through text-gray-400">
+                          {new Intl.NumberFormat('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR',
+                            minimumFractionDigits: 0
+                          }).format(product.price)}
+                        </span>
+                        <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                          Save {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(discountAmount)}
+                        </span>
+                      </div>
+                    )}
                     <span className="text-2xl font-bold text-gray-900">
                       {new Intl.NumberFormat('id-ID', {
                         style: 'currency',
                         currency: 'IDR',
                         minimumFractionDigits: 0
-                      }).format(product.price)}
+                      }).format(hasActiveDiscount ? discountedPrice : product.price)}
                     </span>
                   </div>
                   
@@ -157,7 +189,7 @@ export default async function ProductsPage({
                     Buy Now
                   </Link>
                 </div>
-              ))}
+              );})}
             </div>
           )}
         </div>

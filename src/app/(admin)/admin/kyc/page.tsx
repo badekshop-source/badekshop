@@ -1,158 +1,175 @@
 // src/app/(admin)/admin/kyc/page.tsx
-import { db } from '@/lib/db';
-import { orders, kycDocuments, profiles } from '@/lib/db/schema';
-import { eq, desc, and, ilike, sql } from 'drizzle-orm';
-import { formatDate } from '@/lib/utils';
-import Link from 'next/link';
+import { db } from "@/lib/db";
+import { orders, kycDocuments, profiles } from "@/lib/db/schema";
+import { eq, desc, and, ilike, sql, count, or, inArray } from "drizzle-orm";
+import Link from "next/link";
+import { Search, Filter, Eye, FileText } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/admin/data-table";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { formatDate } from "@/lib/utils";
+
+const KYC_STATUSES = [
+  { value: "", label: "All Status" },
+  { value: "pending", label: "Pending" },
+  { value: "auto_approved", label: "Auto Approved" },
+  { value: "retry_1", label: "Retry 1" },
+  { value: "retry_2", label: "Retry 2" },
+  { value: "under_review", label: "Under Review" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+];
 
 export default async function AdminKycPage({
   searchParams,
 }: {
   searchParams: Promise<{ search?: string; status?: string }>;
 }) {
-  // Check if database is available
   if (!db) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p className="font-bold">Database Connection Error</p>
-          <p>Please set up your database connection and environment variables.</p>
-        </div>
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <p className="font-medium">Database Connection Error</p>
+        <p className="text-sm mt-1">Please check your environment variables.</p>
       </div>
     );
   }
 
   const { search, status } = await searchParams;
 
-  // Build query with filters
-  let query = db
-    .select({
-      order: orders,
-      kycDoc: kycDocuments,
-      customer: profiles,
-    })
-    .from(orders)
-    .leftJoin(kycDocuments, eq(orders.id, kycDocuments.orderId))
-    .leftJoin(profiles, eq(orders.userId, profiles.id))
-    .where(and(
-      sql`${orders.kycStatus} != 'pending'`,
-      sql`${orders.kycStatus} != 'approved'`
-    ))
-    .orderBy(desc(orders.updatedAt));
-
+  const whereClauses = [];
   if (search) {
-    query = query.where(ilike(orders.orderNumber, `%${search}%`));
+    whereClauses.push(
+      or(
+        ilike(orders.orderNumber, `%${search}%`),
+        ilike(orders.fullName, `%${search}%`),
+        ilike(orders.customerEmail, `%${search}%`)
+      )
+    );
   }
-
   if (status) {
-    query = query.where(eq(orders.kycStatus, status));
+    whereClauses.push(eq(orders.kycStatus, status));
   }
 
-  type KYCWithRelations = {
+  const where = whereClauses.length > 0 ? and(...whereClauses) : undefined;
+
+  const [kycList, totalResult] = await Promise.all([
+    db
+      .select({
+        order: orders,
+        kycDoc: kycDocuments,
+        customer: profiles,
+      })
+      .from(orders)
+      .leftJoin(kycDocuments, eq(orders.id, kycDocuments.orderId))
+      .leftJoin(profiles, eq(orders.userId, profiles.id))
+      .where(where)
+      .orderBy(desc(orders.updatedAt))
+      .limit(50),
+    db.select({ count: count() }).from(orders).where(where),
+  ]);
+
+  type KYCListResult = {
     order: typeof orders.$inferSelect;
     kycDoc: typeof kycDocuments.$inferSelect | null;
     customer: typeof profiles.$inferSelect | null;
   };
 
-  const kycList: KYCWithRelations[] = await query;
-
-  const statusColors: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    auto_approved: 'bg-green-100 text-green-800',
-    retry_1: 'bg-yellow-100 text-yellow-800',
-    retry_2: 'bg-yellow-100 text-yellow-800',
-    under_review: 'bg-blue-100 text-blue-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-  };
+  const typedKycList = kycList as KYCListResult[];
+  const totalKYC = totalResult[0]?.count ?? 0;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
+          <p className="text-sm text-gray-500 mt-1">{totalKYC} record{totalKYC !== 1 ? "s" : ""}</p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Order #
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Customer
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Passport
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                IMEI
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Attempts
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Date
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {kycList.map(({ order, kycDoc, customer }) => (
-              <tr key={order.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {order.orderNumber}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {order.fullName}<br />
-                  <span className="text-xs text-gray-400">{order.customerEmail}</span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {order.passportUrl ? (
-                    <a 
-                      href={order.passportUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      View
-                    </a>
-                  ) : (
-                    'Not uploaded'
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {order.imeiNumber || 'Not provided'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[order.kycStatus ?? ''] || 'bg-gray-100 text-gray-800'}`}>
-                    {(order.kycStatus ?? '').replace('_', ' ')}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {order.kycAttempts}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(order.updatedAt)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Link 
-                    href={`/admin/kyc/${order.id}` as any} 
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    {order.kycStatus === 'under_review' ? 'Review' : 'View'}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Search by order #, name, or email..."
+              defaultValue={search}
+              className="pl-9 bg-gray-50 border-gray-200"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <select
+              name="status"
+              defaultValue={status}
+              className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {KYC_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
+
+      {/* Table */}
+      <DataTable
+        headers={[
+          { key: "order", label: "Order" },
+          { key: "customer", label: "Customer" },
+          { key: "passport", label: "Passport" },
+          { key: "imei", label: "IMEI" },
+          { key: "status", label: "KYC Status" },
+          { key: "attempts", label: "Attempts" },
+          { key: "date", label: "Updated" },
+          { key: "actions", label: "", className: "text-right" },
+        ]}
+        rows={typedKycList.map(({ order }) => ({
+          id: order.id,
+          cells: {
+            order: (
+              <span className="font-medium text-gray-900">{order.orderNumber}</span>
+            ),
+            customer: (
+              <div>
+                <p className="font-medium text-gray-900">{order.fullName}</p>
+                <p className="text-xs text-gray-500">{order.customerEmail}</p>
+              </div>
+            ),
+            passport: order.passportUrl ? (
+              <a href={order.passportUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                View
+              </a>
+            ) : (
+              <span className="text-gray-400 text-sm">Not uploaded</span>
+            ),
+            imei: (
+              <span className="font-mono text-sm">{order.imeiNumber || "N/A"}</span>
+            ),
+            status: <StatusBadge status={order.kycStatus ?? "pending"} />,
+            attempts: (
+              <span className={(order.kycAttempts ?? 0) >= 3 ? "text-red-600 font-medium" : "text-gray-600"}>
+                {order.kycAttempts ?? 0} / 3
+              </span>
+            ),
+            date: <span className="text-gray-500">{formatDate(order.updatedAt)}</span>,
+            actions: (
+              <div className="flex justify-end">
+                <Link
+                  href={`/admin/kyc/${order.id}` as any}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <Eye className="h-4 w-4" />
+                  {order.kycStatus === "under_review" ? "Review" : "View"}
+                </Link>
+              </div>
+            ),
+          },
+        }))}
+        emptyMessage="No KYC records found"
+      />
     </div>
   );
 }

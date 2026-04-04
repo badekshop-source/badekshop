@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders, kycDocuments } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { verifyOrderToken } from "@/lib/token";
 import { uploadPassport } from "@/lib/cloudinary";
 import { validatePassportPhoto, determineKycStatus } from "@/lib/kyc-validation";
 
@@ -34,12 +33,11 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
-    const orderId = formData.get("orderId") as string;
-    const token = formData.get("token") as string;
-    const imei = formData.get("imei") as string;
+    const orderId = request.headers.get("X-Order-Id") || "";
+    const imei = request.headers.get("X-IMEI") || "";
 
     // Validate inputs
-    if (!file || !orderId || !token) {
+    if (!file || !orderId) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -51,15 +49,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "IMEI must be exactly 15 digits" },
         { status: 400 }
-      );
-    }
-
-    // Verify token
-    const payload = verifyOrderToken(token);
-    if (!payload || payload.orderId !== orderId) {
-      return NextResponse.json(
-        { success: false, error: "Invalid or expired token" },
-        { status: 401 }
       );
     }
 
@@ -166,6 +155,12 @@ export async function POST(request: NextRequest) {
       newOrderStatus = order.orderStatus; // Preserve current status
     }
 
+    // Generate QR code data for approved KYC
+    let qrCodeData = null;
+    if (newKycStatus === 'auto_approved') {
+      qrCodeData = `badekshop:${orderResult[0].id}`;
+    }
+
     // Get current order status before update
     const currentOrder = await db
       .select({
@@ -187,6 +182,7 @@ export async function POST(request: NextRequest) {
         passportUrl: uploadResult.secure_url,
         passportPublicId: uploadResult.public_id,
         imeiNumber: imei, // Save IMEI to order
+        qrCodeData: qrCodeData, // Save QR code data if auto-approved
         updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId));
@@ -202,6 +198,13 @@ export async function POST(request: NextRequest) {
     if (oldStatus !== newOrderStatus) {
       import('@/lib/workflows').then(workflows => {
         workflows.processOrderStatusUpdate(orderId, newOrderStatus, oldStatus).catch(console.error);
+      });
+    }
+
+    // Trigger KYC approved email for auto-approved orders
+    if (newKycStatus === 'auto_approved') {
+      import('@/lib/workflows').then(workflows => {
+        workflows.sendKycApprovedNotification(orderId).catch(console.error);
       });
     }
 

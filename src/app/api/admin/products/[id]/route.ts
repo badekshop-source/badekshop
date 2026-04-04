@@ -13,8 +13,11 @@ const productUpdateSchema = z.object({
   size: z.enum(["nano", "micro", "standard"]).optional(),
   price: z.number().int().positive().optional(),
   discountPercentage: z.number().int().min(0).max(100).optional(),
+  discountStart: z.string().optional(),
+  discountEnd: z.string().optional(),
   stock: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
+  features: z.array(z.string()).optional(),
 });
 
 // GET /api/admin/products/[id] - Get single product
@@ -61,6 +64,18 @@ export async function PUT(
     const body = await request.json();
     const validatedData = productUpdateSchema.parse(body);
 
+    // Convert date strings to Date objects for Drizzle
+    const updateData: Record<string, any> = {
+      ...validatedData,
+      updatedAt: new Date(),
+    };
+    if (validatedData.discountStart) {
+      updateData.discountStart = new Date(validatedData.discountStart);
+    }
+    if (validatedData.discountEnd) {
+      updateData.discountEnd = new Date(validatedData.discountEnd);
+    }
+
     // Check if product exists
     const existingProduct = await db
       .select({ id: products.id })
@@ -77,10 +92,7 @@ export async function PUT(
 
     const updatedProduct = await db
       .update(products)
-      .set({
-        ...validatedData,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(products.id, id))
       .returning();
 

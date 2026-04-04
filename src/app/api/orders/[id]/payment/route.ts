@@ -68,11 +68,16 @@ export async function POST(
       secure: true, // Use 3D Secure
     };
 
+    const finishUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/order-success?id=${orderId}`;
+
     // Create transaction token
     const transaction = {
       transaction_details: transactionDetails,
       customer_details: customerDetails,
       credit_card: creditCard,
+      callbacks: {
+        finish: finishUrl,
+      },
     };
 
     // Call Midtrans Snap API

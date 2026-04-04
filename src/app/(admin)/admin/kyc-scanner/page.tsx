@@ -1,225 +1,387 @@
 // src/app/(admin)/admin/kyc-scanner/page.tsx
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { QrCode, ScanLine, CheckCircle2, XCircle, Loader2, Smartphone, User, Package, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { cn } from "@/lib/utils";
+
+interface ScannedOrder {
+  id: string;
+  orderNumber: string;
+  fullName: string;
+  customerEmail: string;
+  flightNumber: string;
+  productName: string;
+  kycStatus: string;
+  orderStatus: string;
+  activationOutlet: string;
+}
 
 export default function KycScannerPage() {
   const router = useRouter();
   const [scannedData, setScannedData] = useState<string | null>(null);
+  const [order, setOrder] = useState<ScannedOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [manualInput, setManualInput] = useState("");
+  const [isCameraActive, setIsCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // Initialize camera
-  useEffect(() => {
-    const initCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment' } 
-        });
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        setError('Could not access camera. Please ensure you have granted permission.');
-        console.error('Camera error:', err);
-      }
-    };
-
-    initCamera();
-
-    // Cleanup function
-    return () => {
-      if (videoRef.current?.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
-      }
-    };
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setIsCameraActive(false);
+    }
   }, []);
 
-  // Simulate QR code scanning
+  const startCamera = useCallback(async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        setIsCameraActive(true);
+      }
+    } catch {
+      setError("Could not access camera. Please ensure you have granted permission.");
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
   const handleScan = async () => {
+    if (!scannedData && !manualInput.trim()) {
+      setError("Please enter an order number to scan");
+      return;
+    }
+    
+    // Use the manual input as the scan data
+    const scanInput = manualInput.trim() || scannedData;
+    await handleManualSubmit({ preventDefault: () => {} } as React.FormEvent);
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualInput.trim()) return;
+
     setIsLoading(true);
     setError(null);
-    
-    // In a real implementation, we would use a QR code scanning library
-    // For now, we'll simulate the process with a timeout
-    setTimeout(() => {
-      // Simulate extracting order ID from QR code
-      const mockOrderId = 'ord_' + Math.random().toString(36).substr(2, 9);
-      setScannedData(mockOrderId);
-      setIsLoading(false);
-    }, 2000);
-  };
 
-  // Manual entry handler
-  const handleManualEntry = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const orderId = formData.get('orderId') as string;
-    
-    if (orderId) {
-      setScannedData(orderId);
-    }
-  };
-
-  // Process scanned order
-  const processOrder = async () => {
-    if (!scannedData) return;
-    
-    setIsLoading(true);
-    
     try {
-      // In a real implementation, we would:
-      // 1. Verify the order exists
-      // 2. Check if order is approved
-      // 3. Verify passport matches
-      // 4. Process pickup
-      
-      // For now, simulate success
-      setTimeout(() => {
-        alert(`Order ${scannedData} processed successfully!`);
-        setScannedData(null);
-        setIsLoading(false);
-      }, 1000);
+      const response = await fetch(`/api/orders/track?orderNumber=${encodeURIComponent(manualInput.trim())}`);
+      const data = await response.json();
+
+      if (!response.ok || !data.orders?.length) {
+        throw new Error(data.error || 'Order not found');
+      }
+
+      const foundOrder = data.orders[0];
+      setScannedData(foundOrder.id);
+      setOrder({
+        id: foundOrder.id,
+        orderNumber: foundOrder.orderNumber,
+        fullName: foundOrder.fullName,
+        customerEmail: foundOrder.customerEmail,
+        flightNumber: foundOrder.flightNumber || 'N/A',
+        productName: foundOrder.productName || 'N/A',
+        kycStatus: foundOrder.kycStatus,
+        orderStatus: foundOrder.orderStatus,
+        activationOutlet: foundOrder.activationOutlet || 'Ngurah Rai Airport',
+      });
     } catch (err) {
-      setError('Failed to process order. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to find order');
+    } finally {
       setIsLoading(false);
-      console.error('Process order error:', err);
     }
+  };
+
+  const processPickup = async () => {
+    if (!order) return;
+    setIsProcessing(true);
+
+    try {
+      const response = await fetch(`/api/admin/orders/${order.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to process pickup');
+      }
+
+      setIsSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process pickup');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const resetScanner = () => {
+    setScannedData(null);
+    setOrder(null);
+    setError(null);
+    setIsSuccess(false);
+    setManualInput("");
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">QR Code Scanner</h1>
-          
-          <div className="mb-6">
-            <p className="text-gray-600 mb-4">
-              Scan the QR code on customer's order confirmation to verify and process their SIM card pickup.
-            </p>
-            
-            <div className="bg-gray-100 rounded-lg p-4 mb-4">
-              <p className="text-sm text-gray-500">
-                <strong>Note:</strong> In a real implementation, this would use a QR scanning library like jsQR 
-                to read QR codes from the camera feed. This is a simulation for demonstration purposes.
-              </p>
-            </div>
-          </div>
-          
-          {/* Camera Feed (Simulated) */}
-          <div className="mb-6">
-            <div className="aspect-video bg-black rounded-lg flex items-center justify-center mb-4 relative overflow-hidden">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="border-2 border-green-500 rounded-lg w-64 h-64 flex items-center justify-center">
-                  <div className="text-white text-center">
-                    <div className="text-lg font-semibold mb-2">Camera View</div>
-                    <div className="text-sm">Point at QR code to scan</div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">QR Code Scanner</h1>
+        <p className="text-sm text-gray-500 mt-1">Scan customer QR code to verify and process SIM card pickup</p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Scanner */}
+        <div className="space-y-6">
+          {/* Camera */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ScanLine className="h-5 w-5 text-gray-400" />
+                Camera Scanner
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
+                {isCameraActive ? (
+                  <>
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-48 h-48 border-2 border-white/50 rounded-lg">
+                        <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-blue-500 -mt-0.5 -ml-0.5 rounded-tl-lg" />
+                        <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-blue-500 -mt-0.5 -mr-0.5 rounded-tr-lg" />
+                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-blue-500 -mb-0.5 -ml-0.5 rounded-bl-lg" />
+                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-blue-500 -mb-0.5 -mr-0.5 rounded-br-lg" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                    <QrCode className="h-12 w-12 mb-3" />
+                    <p className="text-sm">Camera is off</p>
                   </div>
-                </div>
+                )}
               </div>
-            </div>
-            
-            <button
-              onClick={handleScan}
-              disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Scanning...' : 'Scan QR Code'}
-            </button>
-          </div>
-          
+
+              <div className="flex gap-2 mt-4">
+                {!isCameraActive ? (
+                  <Button onClick={startCamera} className="flex-1">
+                    <QrCode className="h-4 w-4 mr-2" />
+                    Start Camera
+                  </Button>
+                ) : (
+                  <Button onClick={handleScan} disabled={isLoading} className="flex-1">
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <ScanLine className="h-4 w-4 mr-2" />
+                        Scan QR Code
+                      </>
+                    )}
+                  </Button>
+                )}
+                {isCameraActive && (
+                  <Button variant="outline" onClick={stopCamera}>
+                    Stop
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Manual Entry */}
-          <div className="mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-3">Manual Order Entry</h2>
-            <form onSubmit={handleManualEntry} className="flex gap-2">
-              <input
-                type="text"
-                name="orderId"
-                placeholder="Enter order ID or number"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <button
-                type="submit"
-                className="bg-gray-600 text-white py-2 px-4 rounded-md font-medium hover:bg-gray-700 transition-colors"
-              >
-                Enter
-              </button>
-            </form>
-          </div>
-          
-          {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
-              {error}
-            </div>
-          )}
-          
-          {/* Scanned Result */}
-          {scannedData && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-              <h3 className="font-medium text-green-800 mb-2">Order Found</h3>
-              <p className="text-green-700 mb-4">Order ID: {scannedData}</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-medium text-gray-900 mb-2">Customer Information</h4>
-                  <p className="text-sm text-gray-600">Name: John Doe</p>
-                  <p className="text-sm text-gray-600">Email: john@example.com</p>
-                  <p className="text-sm text-gray-600">Flight: GA123</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border">
-                  <h4 className="font-medium text-gray-900 mb-2">Order Details</h4>
-                  <p className="text-sm text-gray-600">Product: Bali eSIM 7 Days</p>
-                  <p className="text-sm text-gray-600">Status: Approved</p>
-                  <p className="text-sm text-gray-600">Pickup: Ngurah Rai Airport</p>
-                </div>
-              </div>
-              
-              <div className="mt-4 flex gap-3">
-                <button
-                  onClick={processOrder}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-gray-400" />
+                Manual Entry
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleManualSubmit} className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Enter order ID or number"
+                  value={manualInput}
+                  onChange={(e) => setManualInput(e.target.value)}
+                  className="flex-1 bg-gray-50 border-gray-200"
                   disabled={isLoading}
-                  className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? 'Processing...' : 'Confirm Pickup'}
-                </button>
-                
-                <button
-                  onClick={() => setScannedData(null)}
-                  className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md font-medium hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+                />
+                <Button type="submit" disabled={isLoading || !manualInput.trim()}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Error */}
+          {error && (
+            <Card className="border-red-200">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3 text-red-700">
+                  <XCircle className="h-5 w-5 flex-shrink-0" />
+                  <p className="text-sm">{error}</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
-          
-          {/* Instructions */}
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <h3 className="font-medium text-blue-800 mb-2">Staff Instructions</h3>
-            <ul className="text-sm text-blue-700 list-disc pl-5 space-y-1">
-              <li>Verify customer's passport matches the one in the system</li>
-              <li>Confirm customer has the QR code from their email</li>
-              <li>Hand over the SIM card only after successful verification</li>
-              <li>Record any issues in the admin system</li>
-            </ul>
-          </div>
+        </div>
+
+        {/* Results */}
+        <div className="space-y-6">
+          {!order && !isSuccess && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-12 text-gray-500">
+                  <QrCode className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">No order scanned</p>
+                  <p className="text-sm mt-1">Scan a QR code or enter order ID manually</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {order && !isSuccess && (
+            <>
+              <Card className="border-green-200 bg-green-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-green-700">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Order Found
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-green-600 font-mono">{order.orderNumber}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <User className="h-5 w-5 text-gray-400" />
+                    Customer
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <InfoRow label="Name" value={order.fullName} />
+                  <InfoRow label="Email" value={order.customerEmail} />
+                  <InfoRow label="Flight" value={order.flightNumber} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Package className="h-5 w-5 text-gray-400" />
+                    Order
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <InfoRow label="Product" value={order.productName} />
+                  <InfoRow label="KYC" value={<StatusBadge status={order.kycStatus} />} />
+                  <InfoRow label="Status" value={<StatusBadge status={order.orderStatus} />} />
+                  <InfoRow label="Outlet" value={<span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{order.activationOutlet}</span>} />
+                </CardContent>
+              </Card>
+
+              <div className="flex gap-3">
+                <Button onClick={processPickup} disabled={isProcessing} className="flex-1 bg-green-600 hover:bg-green-700">
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Confirm Pickup"
+                  )}
+                </Button>
+                <Button variant="outline" onClick={resetScanner}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )}
+
+          {isSuccess && (
+            <Card className="border-green-200">
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-green-700">Pickup Confirmed!</h3>
+                  <p className="text-sm text-green-600 mt-1">SIM card has been handed over to {order?.fullName}</p>
+                  <Button onClick={resetScanner} className="mt-6">
+                    Scan Next Order
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Instructions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Staff Instructions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2 text-sm text-gray-600">
+            <li className="flex items-start gap-2">
+              <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
+              Verify customer&apos;s passport matches the one in the system
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
+              Confirm customer has the QR code from their email
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
+              Hand over the SIM card only after successful verification
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
+              Record any issues in the admin system
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium text-right">{value}</span>
     </div>
   );
 }

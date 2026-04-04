@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function LandingHeader() {
+  const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -26,9 +28,7 @@ export function LandingHeader() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className={cn(
           "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-          isScrolled
-            ? "bg-white/90 backdrop-blur-lg shadow-lg"
-            : "bg-transparent"
+          isScrolled ? "bg-white/90 backdrop-blur-lg shadow-lg" : "bg-transparent"
         )}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,52 +38,23 @@ export function LandingHeader() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
                 <ShoppingCart className="w-5 h-5 text-white" />
               </div>
-              <span
-                className={cn(
-                  "text-xl font-bold transition-colors",
-                  isScrolled ? "text-gray-900" : "text-white"
-                )}
-              >
+              <span className={cn("text-xl font-bold transition-colors", isScrolled ? "text-gray-900" : "text-white")}>
                 badekshop
               </span>
             </Link>
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-8">
-              <Link
-                href={"/products" as any}
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-blue-600",
-                  isScrolled ? "text-gray-700" : "text-white/90"
-                )}
-              >
+              <Link href={"/products" as any} className={cn("text-sm font-medium transition-colors hover:text-blue-200", isScrolled ? "text-gray-700 hover:text-blue-600" : "text-white/90")}>
                 Products
               </Link>
-              <a
-                href="#how-it-works"
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-blue-600",
-                  isScrolled ? "text-gray-700" : "text-white/90"
-                )}
-              >
+              <a href="#how-it-works" className={cn("text-sm font-medium transition-colors hover:text-blue-200", isScrolled ? "text-gray-700 hover:text-blue-600" : "text-white/90")}>
                 How It Works
               </a>
-              <a
-                href="#faq"
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-blue-600",
-                  isScrolled ? "text-gray-700" : "text-white/90"
-                )}
-              >
+              <a href="#faq" className={cn("text-sm font-medium transition-colors hover:text-blue-200", isScrolled ? "text-gray-700 hover:text-blue-600" : "text-white/90")}>
                 FAQ
               </a>
-              <Link
-                href={"/track-order" as any}
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-blue-600",
-                  isScrolled ? "text-gray-700" : "text-white/90"
-                )}
-              >
+              <Link href={"/track-order" as any} className={cn("text-sm font-medium transition-colors hover:text-blue-200", isScrolled ? "text-gray-700 hover:text-blue-600" : "text-white/90")}>
                 Track Order
               </Link>
             </nav>
@@ -106,18 +77,9 @@ export function LandingHeader() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className={cn(
-                "md:hidden p-2 rounded-lg transition-colors",
-                isScrolled
-                  ? "text-gray-700 hover:bg-gray-100"
-                  : "text-white hover:bg-white/10"
-              )}
+              className={cn("md:hidden p-2 rounded-lg transition-colors", isScrolled ? "text-gray-700 hover:bg-gray-100" : "text-white hover:bg-white/10")}
             >
-              {isMobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
+              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
@@ -135,39 +97,19 @@ export function LandingHeader() {
           >
             <div className="bg-white shadow-xl border-t border-gray-100">
               <nav className="flex flex-col p-4">
-                <Link
-                  href={"/products" as any}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                >
+                <Link href={"/products" as any} onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors">
                   Products
                 </Link>
-                <a
-                  href="#how-it-works"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                >
+                <a href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors">
                   How It Works
                 </a>
-                <a
-                  href="#faq"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                >
+                <a href="#faq" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors">
                   FAQ
                 </a>
-                <Link
-                  href={"/track-order" as any}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                >
+                <Link href={"/track-order" as any} onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-4 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors">
                   Track Order
                 </Link>
-                <Link
-                  href={"/products" as any}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="mt-4 py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-center rounded-full font-semibold"
-                >
+                <Link href={"/products" as any} onClick={() => setIsMobileMenuOpen(false)} className="mt-4 py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-center rounded-full font-semibold">
                   Get Started
                 </Link>
               </nav>

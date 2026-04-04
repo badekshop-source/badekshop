@@ -10,14 +10,18 @@ import { generateOrderToken, getTokenExpiryDate } from '@/lib/token';
 const orderSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   customerEmail: z.string().email('Valid email is required'),
-  customerPhone: z.string().min(1, 'Phone number is required'),
+  customerPhone: z.string().optional().default(''),
   nationality: z.string().min(1, 'Nationality is required'),
   arrivalDate: z.string().min(1, 'Arrival date is required'),
   flightNumber: z.string().min(1, 'Flight number is required'),
   productId: z.string().uuid('Valid product ID is required'),
   quantity: z.number().positive('Quantity must be positive').default(1),
   subtotal: z.number().nonnegative('Subtotal must be non-negative'),
+  discount: z.number().nonnegative().optional().default(0),
+  tax: z.number().nonnegative().optional().default(0),
   total: z.number().nonnegative('Total must be non-negative'),
+  imeiNumber: z.string().regex(/^\d{15}$/, 'IMEI must be 15 digits').optional(),
+  notes: z.string().optional().default(''),
   paymentMethod: z.enum(['visa', 'mastercard', 'jcb', 'amex', 'unionpay']).optional(),
   orderStatus: z.enum(['pending', 'paid', 'processing', 'approved', 'rejected', 'expired', 'cancelled', 'completed']).default('pending'),
   kycStatus: z.enum(['pending', 'auto_approved', 'retry_1', 'retry_2', 'under_review', 'approved', 'rejected']).default('pending'),
@@ -75,6 +79,12 @@ export async function POST(request: Request) {
     // Validate with Zod
     const validatedData = orderSchema.parse(data);
 
+    // Convert date strings to Date objects for Drizzle
+    const insertData: Record<string, any> = {
+      ...validatedData,
+      arrivalDate: new Date(validatedData.arrivalDate),
+    };
+
     // Calculate payment expiration time (2 hours from now)
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 2);
@@ -86,10 +96,10 @@ export async function POST(request: Request) {
     const [tempOrder] = await db
       .insert(orders)
       .values({
-        ...validatedData,
+        ...insertData,
         orderNumber,
         expiresAt,
-        accessToken: '', // Will be updated
+        accessToken: '',
         tokenExpiresAt: getTokenExpiryDate(),
       })
       .returning();

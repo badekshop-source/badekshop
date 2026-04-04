@@ -10,6 +10,8 @@ import { QRCodeDisplay } from "@/components/order/QRCodeDisplay";
 import { formatDate } from "@/lib/utils";
 import { formatCurrency } from "@/lib/currency";
 import Link from "next/link";
+import { LandingHeader } from "@/components/landing/LandingHeader";
+import { LandingFooter } from "@/components/landing/LandingFooter";
 
 interface OrderDetailPageProps {
   params: Promise<{
@@ -64,26 +66,28 @@ export default async function OrderDetailPage({
   const hasReviewed = existingReview.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Order Details</h1>
-          <p className="text-gray-600 mt-1">
-            Order Number: <span className="font-semibold">{order.orderNumber}</span>
-          </p>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <LandingHeader />
+      <main className="flex-1">
+        {/* Hero Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white pt-32 pb-16">
+          <div className="container mx-auto px-4 text-center">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Order Details</h1>
+            <p className="text-blue-100 text-lg max-w-2xl mx-auto">Order Number: {order.orderNumber}</p>
+          </div>
         </div>
 
-        {/* Order Status Tracker */}
-        <div className="mb-8">
-          <OrderStatusTracker
-            orderStatus={order.orderStatus}
-            kycStatus={order.kycStatus}
-            kycAttempts={order.kycAttempts}
-          />
-        </div>
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          {/* Order Status Tracker */}
+          <div className="mb-8">
+            <OrderStatusTracker
+              orderStatus={order.orderStatus}
+              kycStatus={order.kycStatus}
+              kycAttempts={order.kycAttempts}
+            />
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* KYC Section - Show after payment success */}
@@ -217,9 +221,11 @@ export default async function OrderDetailPage({
                 </p>
               </div>
             </div>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
+      <LandingFooter />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 // scripts/seed.ts
+import 'dotenv/config';
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 

@@ -45,8 +45,8 @@ export interface Product {
   size?: string; // 'nano', 'micro', 'standard' for SIM cards
   price: number; // in cents
   discountPercentage?: number;
-  discountStart?: Date;
-  discountEnd?: Date;
+  discountStart?: string;
+  discountEnd?: string;
   stock: number;
   isActive: boolean;
 }

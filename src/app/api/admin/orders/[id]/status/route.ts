@@ -8,7 +8,7 @@ import { z } from "zod";
 const statusUpdateSchema = z.object({
   status: z.enum(["pending", "paid", "processing", "approved", "rejected", "expired", "cancelled", "completed"]),
   notes: z.string().optional(),
-  adminId: z.string().uuid(),
+  adminId: z.string().uuid().optional(),
 });
 
 export async function PUT(
@@ -19,8 +19,6 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     const { status, notes, adminId } = statusUpdateSchema.parse(body);
-
-    // Check if order exists
     const orderResult = await db
       .select({
         id: orders.id,
@@ -60,14 +58,16 @@ export async function PUT(
       .where(eq(orders.id, id));
 
     // Log admin action
-    await db.insert(adminLogs).values({
-      adminId,
-      action: "update_order_status",
-      targetId: id,
-      targetType: "order",
-      details: { previousStatus: order.orderStatus, newStatus: status, notes },
-      createdAt: new Date(),
-    });
+    if (adminId) {
+      await db.insert(adminLogs).values({
+        adminId,
+        action: "update_order_status",
+        targetId: id,
+        targetType: "order",
+        details: { previousStatus: order.orderStatus, newStatus: status, notes },
+        createdAt: new Date(),
+      });
+    }
 
     // Trigger workflow
     const { processOrderStatusUpdate } = await import("@/lib/workflows");

@@ -1,13 +1,55 @@
 // src/lib/auth.ts
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { db } from "./db"; // Assuming you have a db instance
-import { profiles } from "./db/schema";
-import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { pgTable, text, uuid, timestamp, boolean } from "drizzle-orm/pg-core";
+
+// Better-auth required tables
+const user = pgTable("user", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => user.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => user.id),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scope: text("scope"),
+  idToken: text("id_token"),
+  password: text("password"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "pg", // Using PostgreSQL with Neon
+    provider: "pg",
+    schema: {
+      user,
+      session,
+      account,
+    },
   }),
   emailAndPassword: {
     enabled: true,

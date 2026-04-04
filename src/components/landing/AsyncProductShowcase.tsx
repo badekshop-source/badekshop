@@ -20,6 +20,9 @@ interface Product {
   size?: string;
   price: number;
   originalPrice?: number;
+  discountPercentage?: number;
+  discountStart?: string;
+  discountEnd?: string;
   description?: string;
   features: string[];
   popular?: boolean;
@@ -129,7 +132,6 @@ export function AsyncProductShowcase({ activeCategory }: AsyncProductShowcasePro
         setLoading(true);
         setError(null);
         
-        // Map 'sim' to 'sim_card' for database query
         const categoryQueryValue = activeCategory === 'sim' ? 'sim_card' : activeCategory;
         const categoryParam = activeCategory === 'all' ? '' : `category=${categoryQueryValue}`;
         const queryString = categoryParam ? `?${categoryParam}&active=true` : '?active=true';
@@ -145,11 +147,32 @@ export function AsyncProductShowcase({ activeCategory }: AsyncProductShowcasePro
           throw new Error(data.error || 'Unknown error occurred');
         }
         
-        setProducts(data.products || []);
+        const fetchedProducts = data.products || [];
+        
+        if (fetchedProducts.length === 0) {
+          setProducts(fallbackProducts);
+        } else {
+          // Map DB products to include originalPrice for active discounts
+          const mappedProducts = fetchedProducts.map((p: Product) => {
+            const hasActiveDiscount = p.discountPercentage &&
+              p.discountPercentage > 0 &&
+              (!p.discountStart || new Date(p.discountStart) <= new Date()) &&
+              (!p.discountEnd || new Date(p.discountEnd) >= new Date());
+            
+            if (hasActiveDiscount) {
+              return {
+                ...p,
+                originalPrice: p.price,
+                price: Math.round(p.price * (1 - (p.discountPercentage ?? 0) / 100)),
+              };
+            }
+            return p;
+          });
+          setProducts(mappedProducts);
+        }
       } catch (err) {
         console.error('Error fetching products:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
-        // Fallback to fallback data
         setProducts(fallbackProducts);
       } finally {
         setLoading(false);
@@ -160,11 +183,13 @@ export function AsyncProductShowcase({ activeCategory }: AsyncProductShowcasePro
   }, [activeCategory]);
 
   // Filter products by category if not 'all'
-  // Map 'sim' to 'sim_card' for filtering (database uses 'sim_card')
-  const categoryFilter = activeCategory === 'sim' ? 'sim_card' : activeCategory;
+  // Normalize categories: DB uses 'sim_card', fallback uses 'sim'
   const filteredProducts = activeCategory === 'all' 
     ? products 
-    : products.filter(p => p.category === categoryFilter);
+    : products.filter(p => {
+        const normalizedCategory = (p.category as string) === 'sim_card' ? 'sim' : p.category;
+        return normalizedCategory === activeCategory;
+      });
 
   if (loading) {
     return (

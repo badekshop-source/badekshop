@@ -13,8 +13,11 @@ const productSchema = z.object({
   size: z.enum(["nano", "micro", "standard"]).optional(),
   price: z.number().int().positive(),
   discountPercentage: z.number().int().min(0).max(100).default(0),
+  discountStart: z.string().optional(),
+  discountEnd: z.string().optional(),
   stock: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
+  features: z.array(z.string()).optional(),
 });
 
 // GET /api/admin/products - List all products
@@ -62,13 +65,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = productSchema.parse(body);
 
+    // Convert date strings to Date objects for Drizzle
+    const insertData: Record<string, any> = {
+      ...validatedData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    if (validatedData.discountStart) {
+      insertData.discountStart = new Date(validatedData.discountStart);
+    }
+    if (validatedData.discountEnd) {
+      insertData.discountEnd = new Date(validatedData.discountEnd);
+    }
+
     const newProduct = await db
       .insert(products)
-      .values({
-        ...validatedData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .values(insertData)
       .returning();
 
     return NextResponse.json({

@@ -3,7 +3,7 @@
 
 import { useState, useRef } from "react";
 import { KycStatus } from "@/types";
-import { Upload, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle, RefreshCw, Camera } from "lucide-react";
 
 interface KycUploadSectionProps {
   orderId: string;
@@ -215,6 +215,22 @@ export function KycUploadSection({
 
       {status.showUpload && (
         <div>
+          {/* Photo Quality Notice */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <div className="flex items-start gap-2">
+              <Camera className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-blue-900 mb-1">Photo Tips for Faster Activation</p>
+                <ul className="text-xs text-blue-700 space-y-0.5">
+                  <li>• Ensure text is clear and readable</li>
+                  <li>• Avoid glare or reflections</li>
+                  <li>• Include all four corners of the passport</li>
+                  <li>• Good lighting speeds up outlet verification</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           {/* IMEI Input Field */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">

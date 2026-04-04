@@ -1,21 +1,26 @@
 // src/app/(admin)/admin/kyc/[id]/page.tsx
-import { db } from '@/lib/db';
-import { orders, kycDocuments, profiles, adminLogs } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
-import { formatCurrency } from '@/lib/currency';
-import { formatDate } from '@/lib/utils';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { db } from "@/lib/db";
+import { orders, kycDocuments, profiles, adminLogs } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { formatCurrency } from "@/lib/currency";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { ArrowLeft, FileText, Smartphone, User, Plane, CreditCard, Clock } from "lucide-react";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface AdminKycDetailPageProps {
-  params: Promise<{
-    id: string;
-  }>;
+  params: Promise<{ id: string }>;
 }
 
 export default async function AdminKycDetailPage({ params }: AdminKycDetailPageProps) {
   const { id: orderId } = await params;
-  
+
   const orderResult = await db
     .select({
       order: orders,
@@ -29,385 +34,293 @@ export default async function AdminKycDetailPage({ params }: AdminKycDetailPageP
     .limit(1);
 
   if (!orderResult.length) {
-    redirect('/admin/kyc' as any);
+    redirect("/admin/kyc" as any);
   }
 
-  const { order, kycDoc, customer } = orderResult[0];
+  const { order, kycDoc } = orderResult[0];
 
-  // For now, we'll skip the admin check to allow build to complete
-  // In a real implementation, we would properly authenticate the session
-  // const headersInstance = await import('next/headers');
-  // const headersList = headersInstance.headers();
-  // const cookies = headersList.get('cookie');
-  // 
-  // const authResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/session`, {
-  //   headers: {
-  //     cookie: cookies || '',
-  //   },
-  //   cache: 'no-store',
-  // }).then(res => res.json()).catch(() => ({ session: null }));
-  //
-  // const session = authResult.session;
-  //
-  // if (!session) {
-  //   redirect('/admin/login');
-  // }
-  //
-  // const user = await db
-  //   .select()
-  //   .from(profiles)
-  //   .where(eq(profiles.id, session.userId))
-  //   .limit(1);
-  //
-  // if (!user.length || user[0].role !== 'admin') {
-  //   redirect('/');
-  // }
-
-  // Approve KYC
   const approveKyc = async () => {
-    'use server';
-    
-    // For now, we'll skip session verification to allow build
-    // In a real implementation:
-    // const serverSession = await auth.getSession();
-    // if (!serverSession) {
-    //   throw new Error('Unauthorized');
-    // }
-    
-    // Hardcoded admin ID for demo purposes
-    const adminId = 'demo-admin'; // This would be serverSession.session.userId in real implementation
-    
-    // Update order status
+    "use server";
+
+    const headersList = await import("next/headers");
+    const h = await headersList.headers();
+    const session = await auth.api.getSession({ headers: h });
+    if (!session) throw new Error("Unauthorized");
+
+    const adminId = session.user.id;
+
     await db
       .update(orders)
       .set({
-        kycStatus: 'approved',
-        orderStatus: 'approved', // Move order to approved state
+        kycStatus: "approved",
+        orderStatus: "approved",
+        qrCodeData: `badekshop:${orderId}`,
         updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId));
-    
-    // Update KYC document
+
     if (kycDoc) {
-      await db
-        .update(kycDocuments)
-        .set({
-          verificationStatus: 'approved',
-          verifiedBy: adminId, // serverSession.session.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(kycDocuments.id, kycDoc.id));
+      try {
+        await db
+          .update(kycDocuments)
+          .set({
+            verificationStatus: "approved",
+            updatedAt: new Date(),
+          })
+          .where(eq(kycDocuments.id, kycDoc.id));
+      } catch (kycError) {
+        console.error("Failed to update kyc_documents:", kycError);
+      }
     }
-    
-    // Log admin action
+
     await db.insert(adminLogs).values({
-      adminId: adminId, // serverSession.session.userId,
-      action: 'approve_kyc',
+      adminId,
+      action: "approve_kyc",
       targetId: orderId,
-      targetType: 'order',
-      details: {
-        orderId,
-        previousStatus: order.kycStatus,
-        newStatus: 'approved',
-      },
-      ip: null, // Would be retrieved from headers in real implementation
-      userAgent: null,
+      targetType: "order",
+      details: { orderId, previousStatus: order.kycStatus, newStatus: "approved" },
     });
-    
-    // Redirect back to this page to refresh
+
+    // Trigger KYC approved email
+    import("@/lib/workflows").then(workflows => {
+      workflows.sendKycApprovedNotification(orderId).catch(console.error);
+    });
+
     redirect(`/admin/kyc/${orderId}` as any);
   };
 
-  // Reject KYC
   const rejectKyc = async (formData: FormData) => {
-    'use server';
-    
-    const reason = formData.get('reason') as string;
-    
-    // For now, we'll skip session verification to allow build
-    // In a real implementation:
-    // const serverSession = await auth.getSession();
-    // if (!serverSession) {
-    //   throw new Error('Unauthorized');
-    // }
-    
-    // Hardcoded admin ID for demo purposes
-    const adminId = 'demo-admin'; // This would be serverSession.session.userId in real implementation
-    
-    // Update order status
+    "use server";
+
+    const headersList = await import("next/headers");
+    const h = await headersList.headers();
+    const session = await auth.api.getSession({ headers: h });
+    if (!session) throw new Error("Unauthorized");
+
+    const reason = formData.get("reason") as string;
+    const adminId = session.user.id;
+
     await db
       .update(orders)
       .set({
-        kycStatus: 'rejected',
-        orderStatus: 'rejected', // Move order to rejected state
-        refundStatus: 'requested', // Mark for refund
+        kycStatus: "rejected",
+        orderStatus: "rejected",
+        refundStatus: "requested",
         updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId));
-    
-    // Update KYC document
-    if (kycDoc) {
-      await db
-        .update(kycDocuments)
-        .set({
-          verificationStatus: 'rejected',
-          verifiedBy: adminId, // serverSession.session.userId,
-          verificationNotes: reason,
-          updatedAt: new Date(),
-        })
-        .where(eq(kycDocuments.id, kycDoc.id));
-    }
-    
-    // Log admin action
-    await db.insert(adminLogs).values({
-      adminId: adminId, // serverSession.session.userId,
-      action: 'reject_kyc',
-      targetId: orderId,
-      targetType: 'order',
-      details: {
-        orderId,
-        previousStatus: order.kycStatus,
-        newStatus: 'rejected',
-        reason,
-      },
-      ip: null, // Would be retrieved from headers in real implementation
-      userAgent: null,
-    });
-    
-    // Redirect back to this page to refresh
-    redirect(`/admin/kyc/${orderId}` as any);
-  };
 
-  // Status colors
-  const statusColors: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    auto_approved: 'bg-green-100 text-green-800',
-    retry_1: 'bg-yellow-100 text-yellow-800',
-    retry_2: 'bg-yellow-100 text-yellow-800',
-    under_review: 'bg-blue-100 text-blue-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
+    if (kycDoc) {
+      try {
+        await db
+          .update(kycDocuments)
+          .set({
+            verificationStatus: "rejected",
+            verificationNotes: reason,
+            updatedAt: new Date(),
+          })
+          .where(eq(kycDocuments.id, kycDoc.id));
+      } catch (kycError) {
+        console.error("Failed to update kyc_documents:", kycError);
+      }
+    }
+
+    await db.insert(adminLogs).values({
+      adminId,
+      action: "reject_kyc",
+      targetId: orderId,
+      targetType: "order",
+      details: { orderId, previousStatus: order.kycStatus, newStatus: "rejected", reason },
+    });
+
+    // Trigger refund workflow
+    import("@/lib/workflows").then(workflows => {
+      workflows.processOrderStatusUpdate(orderId, "rejected", order.kycStatus ?? "pending").catch(console.error);
+    });
+
+    redirect(`/admin/kyc/${orderId}` as any);
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">KYC Review</h1>
-        <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${statusColors[order.kycStatus]}`}>
-          {order.kycStatus.replace('_', ' ')}
-        </span>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/kyc" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="h-5 w-5 text-gray-600" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">KYC Review</h1>
+            <p className="text-sm text-gray-500 mt-1">{order.orderNumber}</p>
+          </div>
+        </div>
+        <StatusBadge status={order.kycStatus ?? "pending"} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Main */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Passport Document */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Passport Document</h2>
-            
-            {order.passportUrl ? (
-              <div className="flex flex-col items-center">
-                <div className="mb-4">
-                   <img 
-                     src={order.passportUrl} 
-                     alt="Passport document" 
-                     className="max-w-full h-auto rounded-lg border border-gray-200"
-                     crossOrigin="anonymous"
-                   />
-                </div>
-                
-                <a 
-                  href={order.passportUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  Open in new tab
-                </a>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-gray-500">
-                No passport document uploaded
-              </div>
-            )}
-          </div>
-
-          {/* IMEI Information */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Device Information</h2>
-            
-            <div className="space-y-3">
-              <div>
-                <span className="text-sm text-gray-500">IMEI Number</span>
-                <p className="font-medium">{order.imeiNumber || 'Not provided'}</p>
-              </div>
-              
-              <div>
-                <span className="text-sm text-gray-500">Device Model</span>
-                <p className="font-medium">{order.notes || 'Not specified'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Verification Actions */}
-          {order.kycStatus === 'under_review' && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Verification Actions</h2>
-              
-              <div className="flex flex-col sm:flex-row gap-4">
-                <form action={approveKyc}>
-                  <button
-                    type="submit"
-                    className="w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors"
+          {/* Passport */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-5 w-5 text-gray-400" />
+                Passport Document
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {order.passportUrl ? (
+                <div className="space-y-3">
+                  <div className="bg-gray-100 rounded-lg overflow-hidden border">
+                    <img
+                      src={order.passportUrl}
+                      alt="Passport document"
+                      className="w-full h-auto max-h-96 object-contain"
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                  <a
+                    href={order.passportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline"
                   >
-                    Approve KYC
-                  </button>
-                </form>
-                
-                <div className="w-full">
-                  <form action={rejectKyc} className="space-y-3">
+                    Open in new tab &rarr;
+                  </a>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+                  <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                  <p>No passport document uploaded</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Device */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-gray-400" />
+                Device Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <InfoRow label="IMEI Number" value={<span className="font-mono">{order.imeiNumber || "Not provided"}</span>} />
+              <InfoRow label="Document Type" value="Passport" />
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          {order.passportUrl && !["approved", "rejected", "cancelled"].includes(order.kycStatus ?? "") && (
+            <Card className="border-blue-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Verification Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <form action={approveKyc} className="flex-1">
+                    <Button type="submit" className="w-full bg-green-600 hover:bg-green-700">
+                      Approve KYC
+                    </Button>
+                  </form>
+                  <form action={rejectKyc} className="flex-1 space-y-3">
                     <select
                       name="reason"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select rejection reason</option>
                       <option value="blurry_image">Blurry or unclear image</option>
                       <option value="document_expired">Document expired</option>
-                      <option value="mismatch_info">Info doesn't match passport</option>
+                      <option value="mismatch_info">Info doesn&apos;t match passport</option>
                       <option value="fake_document">Fake document detected</option>
                       <option value="other">Other reason</option>
                     </select>
-                    
-                    <button
-                      type="submit"
-                      className="w-full bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition-colors"
-                    >
+                    <Button type="submit" variant="destructive" className="w-full">
                       Reject KYC
-                    </button>
+                    </Button>
                   </form>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
+        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Order Details */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
-            
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="text-gray-500 block">Order Number</span>
-                <span className="font-medium">{order.orderNumber}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Product</span>
-                <span className="font-medium">{order.productId}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Amount</span>
-                <span className="font-medium">{formatCurrency(order.total)}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Order Status</span>
-                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[order.orderStatus]}`}>
-                  {order.orderStatus}
-                </span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Payment Status</span>
-                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                  order.paymentStatus === 'paid' 
-                    ? 'bg-green-100 text-green-800' 
-                    : order.paymentStatus === 'pending' 
-                    ? 'bg-yellow-100 text-yellow-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {order.paymentStatus}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Order */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-5 w-5 text-gray-400" />
+                Order Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <InfoRow label="Order #" value={order.orderNumber} />
+              <InfoRow label="Amount" value={formatCurrency(order.total)} />
+              <InfoRow label="Order Status" value={<StatusBadge status={order.orderStatus ?? "pending"} />} />
+              <InfoRow label="Payment" value={<StatusBadge status={order.paymentStatus ?? "pending"} />} />
+            </CardContent>
+          </Card>
 
-          {/* Customer Information */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer Information</h2>
-            
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="text-gray-500 block">Full Name</span>
-                <span className="font-medium">{order.fullName}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Email</span>
-                <span className="font-medium">{order.customerEmail}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Phone</span>
-                <span className="font-medium">{order.customerPhone}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Nationality</span>
-                <span className="font-medium">{order.nationality}</span>
-              </div>
-            </div>
-          </div>
+          {/* Customer */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-5 w-5 text-gray-400" />
+                Customer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <InfoRow label="Name" value={order.fullName} />
+              <InfoRow label="Email" value={order.customerEmail} />
+              <InfoRow label="Phone" value={order.customerPhone} />
+              <InfoRow label="Nationality" value={order.nationality} />
+            </CardContent>
+          </Card>
 
-          {/* Travel Information */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Travel Information</h2>
-            
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="text-gray-500 block">Arrival Date</span>
-                <span className="font-medium">{formatDate(order.arrivalDate)}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Flight Number</span>
-                <span className="font-medium">{order.flightNumber}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Pickup Location</span>
-                <span className="font-medium">{order.activationOutlet}</span>
-              </div>
-            </div>
-          </div>
+          {/* Travel */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Plane className="h-5 w-5 text-gray-400" />
+                Travel Info
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <InfoRow label="Arrival" value={formatDate(order.arrivalDate)} />
+              <InfoRow label="Flight" value={order.flightNumber} />
+              <InfoRow label="Outlet" value={order.activationOutlet} />
+            </CardContent>
+          </Card>
 
           {/* KYC History */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">KYC History</h2>
-            
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="text-gray-500 block">Status</span>
-                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[order.kycStatus]}`}>
-                  {order.kycStatus.replace('_', ' ')}
-                </span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Attempts</span>
-                <span className="font-medium">{order.kycAttempts}</span>
-              </div>
-              
-              <div>
-                <span className="text-gray-500 block">Last Updated</span>
-                <span className="font-medium">{formatDate(order.updatedAt)}</span>
-              </div>
-            </div>
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-5 w-5 text-gray-400" />
+                KYC History
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <InfoRow label="Status" value={<StatusBadge status={order.kycStatus ?? "pending"} />} />
+              <InfoRow label="Attempts" value={`${order.kycAttempts} / 3`} />
+              <InfoRow label="Last Updated" value={formatDateTime(order.updatedAt)} />
+            </CardContent>
+          </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium text-right">{value}</span>
     </div>
   );
 }

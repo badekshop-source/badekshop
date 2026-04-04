@@ -210,15 +210,15 @@ export async function processOrderStatusUpdate(orderId: string, newStatus: strin
       await sendOrderConfirmation(orderId);
     }
     
-    // Send KYC approved email when status changes to 'approved' (KYC successful)
-    if (newStatus === 'approved' && oldStatus !== 'approved') {
+    // Send KYC approved email when status changes to 'approved' or 'auto_approved'
+    if ((newStatus === 'approved' || newStatus === 'auto_approved') && oldStatus !== 'approved' && oldStatus !== 'auto_approved') {
       // Update order with QR code data
       const qrCodeData = `badekshop:${orderId}`;
       
       await db.update(orders)
         .set({
           qrCodeData,
-          orderStatus: 'completed', // Set to completed after approval
+          orderStatus: newStatus === 'auto_approved' ? 'processing' : 'completed',
           updatedAt: new Date()
         })
         .where(eq(orders.id, orderId));
@@ -228,12 +228,11 @@ export async function processOrderStatusUpdate(orderId: string, newStatus: strin
     
     // Handle under_review status - notify admin for manual review
     if (newStatus === 'under_review' && oldStatus !== 'under_review') {
-      // In a real implementation, you would send a notification to admins here
       console.log(`Order ${orderId} requires manual KYC review`);
     }
     
-    // Schedule pickup reminder when status changes to 'approved' and arrival date is set
-    if (newStatus === 'approved' && oldStatus !== 'approved') {
+    // Schedule pickup reminder when status changes to 'approved' or 'auto_approved'
+    if ((newStatus === 'approved' || newStatus === 'auto_approved') && oldStatus !== 'approved' && oldStatus !== 'auto_approved') {
       await schedulePickupReminder(orderId);
     }
     

@@ -19,6 +19,7 @@ interface Product {
   size?: string;
   price: number;
   originalPrice?: number;
+  discountPercentage?: number;
   data?: string;
   description?: string;
   features: string[];
@@ -55,6 +56,13 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
           <span className="bg-green-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
             Best Value
+          </span>
+        </div>
+      )}
+      {product.originalPrice && !product.popular && !product.bestValue && (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+          <span className="bg-gradient-to-r from-red-600 to-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg ring-2 ring-white">
+            {product.discountPercentage ? `${product.discountPercentage}% OFF` : 'SALE'}
           </span>
         </div>
       )}
@@ -148,14 +156,19 @@ export function ProductCard({ product }: ProductCardProps) {
         {/* Price */}
         <div className="mb-4">
           {product.originalPrice && (
-            <span
-              className={cn(
-                "text-sm line-through mr-2 block",
-                product.popular ? "text-blue-200" : "text-gray-400"
-              )}
-            >
-              Rp {product.originalPrice.toLocaleString("id-ID")}
-            </span>
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className={cn(
+                  "text-sm line-through",
+                  product.popular ? "text-blue-200" : "text-gray-400"
+                )}
+              >
+                Rp {product.originalPrice.toLocaleString("id-ID")}
+              </span>
+              <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                Save Rp {(product.originalPrice - product.price).toLocaleString("id-ID")}
+              </span>
+            </div>
           )}
           <div className="flex items-baseline gap-1">
             <span
