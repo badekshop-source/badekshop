@@ -12,6 +12,8 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     globalSetup: './tests/global-setup.ts',
     environment: 'node',
+    // Exclude e2e tests (Playwright)
+    exclude: ['e2e/**', 'node_modules/**', 'testsprite_tests/**'],
     // Run tests sequentially to avoid database conflicts (Vitest 4 syntax)
     pool: 'forks',
     // Run each test file in isolation
