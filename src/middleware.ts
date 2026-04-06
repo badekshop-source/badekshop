@@ -5,6 +5,10 @@ import { auth } from '@/lib/auth';
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
   
+  // Set pathname header for server components
+  const pathname = request.nextUrl.pathname;
+  response.headers.set('x-pathname', pathname);
+  
   // Security headers
   response.headers.set('X-DNS-Prefetch-Control', 'off');
   response.headers.set('X-Frame-Options', 'DENY');
@@ -30,7 +34,6 @@ export async function middleware(request: NextRequest) {
   response.headers.set('Content-Security-Policy', cspHeader);
   
   // Check if user is accessing admin routes
-  const pathname = request.nextUrl.pathname;
   const isAdminPath = pathname.startsWith('/admin');
   const isLoginPage = pathname === '/admin/login';
   
