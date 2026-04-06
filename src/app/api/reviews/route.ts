@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { reviews, orders } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte, isNull, count } from "drizzle-orm";
 import { verifyOrderToken } from "@/lib/token";
 import { z } from "zod";
 
@@ -24,7 +24,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10");
     const page = parseInt(searchParams.get("page") || "1");
+    const minRating = parseInt(searchParams.get("minRating") || "0");
     const offset = (page - 1) * limit;
+
+    // Build where clause
+    const conditions = [eq(reviews.isApproved, true), isNull(reviews.deletedAt)];
+    
+    if (minRating > 0) {
+      conditions.push(gte(reviews.rating, minRating));
+    }
 
     const approvedReviews = await db
       .select({
@@ -38,18 +46,18 @@ export async function GET(request: NextRequest) {
         reviewedAt: reviews.reviewedAt,
       })
       .from(reviews)
-      .where(eq(reviews.isApproved, true))
+      .where(and(...conditions))
       .orderBy(desc(reviews.reviewedAt))
       .limit(limit)
       .offset(offset);
 
     // Get total count for pagination
     const countResult = await db
-      .select({ count: db.fn.count() })
+      .select({ count: count() })
       .from(reviews)
-      .where(eq(reviews.isApproved, true));
+      .where(and(...conditions));
 
-    const total = parseInt(countResult[0]?.count as string) || 0;
+    const total = countResult[0]?.count || 0;
 
     return NextResponse.json({
       success: true,

@@ -1,12 +1,19 @@
-// src/app/(admin)/admin/login/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { createAuthClient } from 'better-auth/client';
 import { useRouter } from 'next/navigation';
 
+// Initialize auth client with production URL
+const getBaseURL = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://badekshop.vercel.app';
+};
+
 const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || 'https://badekshop.vercel.app',
+  baseURL: getBaseURL(),
 });
 
 export default function AdminLoginPage() {
@@ -14,33 +21,42 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debug, setDebug] = useState('');
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setDebug('');
 
     try {
+      setDebug('Attempting login...');
+      
       const result = await authClient.signIn.email({
         email,
         password,
       });
 
+      setDebug('Login response received: ' + JSON.stringify(result ? 'has result' : 'no result'));
+
       if (result?.error) {
         setError(result.error.message || 'Login failed');
         setLoading(false);
+        setDebug('Error: ' + result.error.message);
         return;
       }
 
-      // Small delay to ensure session is set
-      await new Promise(resolve => setTimeout(resolve, 500));
+      setDebug('Login successful, redirecting...');
       
-      // Redirect to admin dashboard
+      // Use hard redirect to ensure session is properly set
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       window.location.href = '/admin';
     } catch (err) {
       setError('An unexpected error occurred');
-      console.error(err);
+      console.error('Login error:', err);
+      setDebug('Exception: ' + (err instanceof Error ? err.message : String(err)));
       setLoading(false);
     }
   };
@@ -60,6 +76,12 @@ export default function AdminLoginPage() {
           {error && (
             <div className="rounded-md bg-red-50 p-4">
               <div className="text-sm text-red-700">{error}</div>
+            </div>
+          )}
+          
+          {debug && process.env.NODE_ENV === 'development' && (
+            <div className="rounded-md bg-blue-50 p-4">
+              <div className="text-xs text-blue-700 font-mono">{debug}</div>
             </div>
           )}
           

@@ -10,6 +10,7 @@ import {
   Package,
   QrCode,
   FileText,
+  Star,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { label: "KYC", href: "/admin/kyc", icon: FileCheck },
+  { label: "Reviews", href: "/admin/reviews", icon: Star },
   { label: "Products", href: "/admin/products", icon: Package },
   { label: "Scanner", href: "/admin/kyc-scanner", icon: QrCode },
   { label: "Audit Logs", href: "/admin/logs", icon: FileText },

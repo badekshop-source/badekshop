@@ -100,6 +100,8 @@ export const reviews = pgTable("reviews", {
   reviewText: text("review_text").notNull(),
   isApproved: boolean("is_approved").default(false), // Auto-approved for 4-5 stars
   reviewedAt: timestamp("reviewed_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: uuid("deleted_by").references(() => profiles.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -64,6 +64,11 @@ function checkLoginRateLimit(ip: string): { success: boolean; remaining: number 
   return { success: true, remaining: maxAttempts - record.count };
 }
 
+const isDevelopment = process.env.NODE_ENV !== "production" && !process.env.VERCEL_ENV;
+const baseURL = isDevelopment 
+  ? "http://localhost:3000" 
+  : (process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -77,17 +82,26 @@ export const auth = betterAuth({
     enabled: true,
   },
   secret: process.env.BETTER_AUTH_SECRET || "fallback-dev-secret-change-in-production",
-  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  baseURL,
   trustedOrigins: [
     "http://localhost:3000",
     "https://badekshop.vercel.app",
-    process.env.BETTER_AUTH_URL,
-    process.env.NEXT_PUBLIC_APP_URL,
-  ].filter(Boolean) as string[],
+  ],
+  cookies: {
+    session_token: {
+      name: "better-auth.session_token",
+      attributes: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: !isDevelopment,
+      },
+    },
+  },
   rateLimit: {
     enabled: true,
-    window: 15 * 60, // 15 minutes
-    max: 5, // 5 attempts per window
+    window: 15 * 60,
+    max: 5,
   },
 });
 

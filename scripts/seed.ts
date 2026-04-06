@@ -1,5 +1,11 @@
 // scripts/seed.ts
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env.local first, then .env
+config({ path: resolve(process.cwd(), '.env.local') });
+config({ path: resolve(process.cwd(), '.env') });
+
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 
@@ -31,32 +37,47 @@ const seedData = async () => {
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
   const adminId = '00000000-0000-0000-0000-000000000001';
 
-  // Check if admin exists
-  const existingAdmin = await sql`SELECT id FROM profiles WHERE email = ${adminEmail}`;
+  // Check if admin exists in profiles
+  const existingProfile = await sql`SELECT id FROM profiles WHERE email = ${adminEmail}`;
   
-  if (existingAdmin.length === 0) {
-    // Create better-auth user
-    await sql`
-      INSERT INTO "user" (id, email, name, email_verified, created_at, updated_at)
-      VALUES (${adminId}, ${adminEmail}, 'BadekShop Admin', true, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `;
+  if (existingProfile.length === 0) {
+    // Check if user exists in better-auth user table
+    const existingUser = await sql`SELECT id FROM "user" WHERE email = ${adminEmail}`;
+    
+    if (existingUser.length === 0) {
+      // Create new admin user in all tables
+      await sql`
+        INSERT INTO "user" (id, email, name, email_verified, created_at, updated_at)
+        VALUES (${adminId}, ${adminEmail}, 'BadekShop Admin', true, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
 
-    // Create better-auth account with password
-    await sql`
-      INSERT INTO account (id, user_id, account_id, provider_id, password, created_at, updated_at)
-      VALUES ('acc-admin-001', ${adminId}, ${adminEmail}, 'credential', ${hashedPassword}, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `;
+      // Create better-auth account with password
+      await sql`
+        INSERT INTO account (id, user_id, account_id, provider_id, password, created_at, updated_at)
+        VALUES ('acc-admin-001', ${adminId}, ${adminEmail}, 'credential', ${hashedPassword}, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
 
-    // Create profile
-    await sql`
-      INSERT INTO profiles (id, email, name, role, created_at, updated_at)
-      VALUES (${adminId}, ${adminEmail}, 'BadekShop Admin', 'admin', NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
-    `;
+      // Create profile
+      await sql`
+        INSERT INTO profiles (id, email, name, role, created_at, updated_at)
+        VALUES (${adminId}, ${adminEmail}, 'BadekShop Admin', 'admin', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
 
-    console.log('✓ Admin user created');
+      console.log('✓ Admin user created');
+    } else {
+      // User exists in better-auth but not in profiles - create profile
+      const userId = existingUser[0].id;
+      await sql`
+        INSERT INTO profiles (id, email, name, role, created_at, updated_at)
+        VALUES (${userId}, ${adminEmail}, 'BadekShop Admin', 'admin', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+      console.log('✓ Admin profile created for existing user');
+    }
+    
     console.log(`  Email: ${adminEmail}`);
     console.log(`  Password: ${adminPassword}`);
     console.log(`  Note: Login at http://localhost:3000/admin/login\n`);
