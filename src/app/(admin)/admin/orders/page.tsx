@@ -9,6 +9,7 @@ import { DataTable } from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/utils";
+import { OrdersExportWrapper } from "@/components/admin/orders-export-wrapper";
 
 const ORDER_STATUSES = [
   { value: "", label: "All Status" },
@@ -87,6 +88,7 @@ export default async function AdminOrdersPage({
           <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
           <p className="text-sm text-gray-500 mt-1">{totalOrders} total order{totalOrders !== 1 ? "s" : ""}</p>
         </div>
+        <OrdersExportWrapper />
       </div>
 
       {/* Filters */}
