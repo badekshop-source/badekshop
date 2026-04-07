@@ -18,7 +18,7 @@ const productUpdateSchema = z.object({
   stock: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
   features: z.array(z.string()).optional(),
-  badge: z.enum(["popular", "best_value", "new", "limited"]).nullable().optional(),
+  badge: z.enum(["popular", "best_value", "new", "limited", ""]).nullable().optional().transform(v => v === "" ? null : v),
 });
 
 // GET /api/admin/products/[id] - Get single product
