@@ -29,6 +29,7 @@ export const products = pgTable("products", {
   discountEnd: timestamp("discount_end"),
   stock: integer("stock").default(0),
   isActive: boolean("is_active").default(true),
+  badge: text("badge"), // 'popular', 'best_value', 'new', 'limited', or null
   features: json("features").$type<string[]>(), // Array of features
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -49,6 +49,7 @@ export async function GET(
         discountStart: product.discountStart,
         discountEnd: product.discountEnd,
         stock: product.stock,
+        badge: product.badge,
         isActive: product.isActive,
       },
     });

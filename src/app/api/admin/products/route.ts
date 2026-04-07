@@ -18,6 +18,7 @@ const productSchema = z.object({
   stock: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
   features: z.array(z.string()).optional(),
+  badge: z.enum(["popular", "best_value", "new", "limited"]).nullable().optional(),
 });
 
 // GET /api/admin/products - List all products

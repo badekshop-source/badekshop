@@ -27,6 +27,14 @@ const FEATURES_OPTIONS = [
   'Local Number',
 ];
 
+const BADGE_OPTIONS = [
+  { value: '', label: 'None', color: 'gray' },
+  { value: 'popular', label: 'Most Popular', color: 'orange' },
+  { value: 'best_value', label: 'Best Value', color: 'green' },
+  { value: 'new', label: 'New Arrival', color: 'blue' },
+  { value: 'limited', label: 'Limited Edition', color: 'purple' },
+] as const;
+
 export default function AdminNewProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -41,6 +49,8 @@ export default function AdminNewProductPage() {
     price: '',
     stock: '0',
     features: [] as string[],
+    isActive: true,
+    badge: '' as '' | 'popular' | 'best_value' | 'new' | 'limited',
     discountPercentage: '',
     discountStart: '',
     discountEnd: '',
@@ -61,6 +71,8 @@ export default function AdminNewProductPage() {
         price: parseInt(formData.price),
         stock: parseInt(formData.stock) || 0,
         features: formData.features,
+        isActive: formData.isActive,
+        badge: formData.badge || undefined,
         discountPercentage: formData.discountPercentage ? parseInt(formData.discountPercentage) : 0,
         discountStart: formData.discountStart || undefined,
         discountEnd: formData.discountEnd || undefined,
@@ -331,6 +343,54 @@ export default function AdminNewProductPage() {
 
           {/* Right Column */}
           <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Product Badge</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Badge (Optional)
+                  </label>
+                  <Select
+                    value={formData.badge || undefined}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, badge: value as typeof formData.badge })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select badge" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BADGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex items-center gap-2">
+                            {option.value && (
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  option.color === 'orange' ? 'bg-orange-500' :
+                                  option.color === 'green' ? 'bg-green-500' :
+                                  option.color === 'blue' ? 'bg-blue-500' :
+                                  option.color === 'purple' ? 'bg-purple-500' :
+                                  'bg-gray-300'
+                                }`}
+                              />
+                            )}
+                            {option.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.badge && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Badge shows on product card to highlight this product.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Features</CardTitle>

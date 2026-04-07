@@ -17,6 +17,7 @@ interface ProductItem {
   duration: number | null;
   stock: number | null;
   isActive: boolean | null;
+  badge: string | null;
   discountPercentage: number | null;
   discountStart: string | null;
   discountEnd: string | null;
@@ -75,6 +76,7 @@ export function ProductsTable({ productsList }: ProductsTableProps) {
         headers={[
           { key: 'name', label: 'Product' },
           { key: 'category', label: 'Category' },
+          { key: 'badge', label: 'Badge' },
           { key: 'price', label: 'Price' },
           { key: 'discount', label: 'Discount' },
           { key: 'duration', label: 'Duration' },
@@ -87,6 +89,20 @@ export function ProductsTable({ productsList }: ProductsTableProps) {
           const discountEnd = product.discountEnd ? new Date(product.discountEnd) : null;
           const isActiveDiscount = hasDiscount && (!discountEnd || discountEnd >= new Date());
           
+          const badgeColors: Record<string, string> = {
+            popular: 'bg-orange-100 text-orange-700 border-orange-200',
+            best_value: 'bg-green-100 text-green-700 border-green-200',
+            new: 'bg-blue-100 text-blue-700 border-blue-200',
+            limited: 'bg-purple-100 text-purple-700 border-purple-200',
+          };
+
+          const badgeLabels: Record<string, string> = {
+            popular: 'Most Popular',
+            best_value: 'Best Value',
+            new: 'New Arrival',
+            limited: 'Limited',
+          };
+          
           return {
           id: product.id,
           cells: {
@@ -98,6 +114,13 @@ export function ProductsTable({ productsList }: ProductsTableProps) {
             ),
             category: (
               <Badge variant="outline" className="capitalize">{product.category}</Badge>
+            ),
+            badge: product.badge ? (
+              <Badge variant="outline" className={badgeColors[product.badge] || 'bg-gray-100 text-gray-700'}>
+                {badgeLabels[product.badge] || product.badge}
+              </Badge>
+            ) : (
+              <span className="text-gray-400">-</span>
             ),
             price: (
               <div>

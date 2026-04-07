@@ -27,6 +27,14 @@ const FEATURES_OPTIONS = [
   'Local Number',
 ];
 
+const BADGE_OPTIONS = [
+  { value: '', label: 'None', color: 'gray' },
+  { value: 'popular', label: 'Most Popular', color: 'orange' },
+  { value: 'best_value', label: 'Best Value', color: 'green' },
+  { value: 'new', label: 'New Arrival', color: 'blue' },
+  { value: 'limited', label: 'Limited Edition', color: 'purple' },
+] as const;
+
 interface ProductData {
   id: string;
   name: string;
@@ -38,6 +46,7 @@ interface ProductData {
   stock: number;
   features: string[] | null;
   isActive: boolean;
+  badge: string | null;
   discountPercentage: number | null;
   discountStart: string | null;
   discountEnd: string | null;
@@ -60,6 +69,7 @@ export default function AdminEditProductPage({ params }: { params: Promise<{ id:
     stock: '0',
     features: [] as string[],
     isActive: true,
+    badge: '' as '' | 'popular' | 'best_value' | 'new' | 'limited',
     discountPercentage: '',
     discountStart: '',
     discountEnd: '',
@@ -86,6 +96,7 @@ export default function AdminEditProductPage({ params }: { params: Promise<{ id:
           stock: String(product.stock),
           features: product.features || [],
           isActive: product.isActive,
+          badge: (product.badge as '' | 'popular' | 'best_value' | 'new' | 'limited') || '',
           discountPercentage: product.discountPercentage ? String(product.discountPercentage) : '',
           discountStart: product.discountStart ? product.discountStart.split('T')[0] : '',
           discountEnd: product.discountEnd ? product.discountEnd.split('T')[0] : '',
@@ -116,6 +127,7 @@ export default function AdminEditProductPage({ params }: { params: Promise<{ id:
         stock: parseInt(formData.stock) || 0,
         features: formData.features,
         isActive: formData.isActive,
+        badge: formData.badge || undefined,
         discountPercentage: formData.discountPercentage ? parseInt(formData.discountPercentage) : undefined,
         discountStart: formData.discountStart || undefined,
         discountEnd: formData.discountEnd || undefined,
@@ -333,6 +345,47 @@ export default function AdminEditProductPage({ params }: { params: Promise<{ id:
                   <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
                     Active (visible to customers)
                   </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Badge
+                  </label>
+                  <Select
+                    value={formData.badge || undefined}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, badge: value as typeof formData.badge })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select badge" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BADGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex items-center gap-2">
+                            {option.value && (
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  option.color === 'orange' ? 'bg-orange-500' :
+                                  option.color === 'green' ? 'bg-green-500' :
+                                  option.color === 'blue' ? 'bg-blue-500' :
+                                  option.color === 'purple' ? 'bg-purple-500' :
+                                  'bg-gray-300'
+                                }`}
+                              />
+                            )}
+                            {option.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.badge && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Badge shows on product card to highlight this product.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
